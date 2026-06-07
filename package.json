@@ -1,0 +1,17 @@
+{
+  "name": "financecore",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "next": "14.2.29",
+    "react": "^18",
+    "react-dom": "^18",
+    "recharts": "^2.13.3"
+  }
+}
