@@ -3,14 +3,17 @@ const fmtPct = (n) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 
 export default function NetWorthCard({ netWorth }) {
   if (!netWorth) return null;
-  const up = netWorth.change30d >= 0;
+  const hasChange = netWorth.change30d != null && netWorth.changePct != null;
+  const up = (netWorth.change30d ?? 0) >= 0;
   return (
     <div className="card" style={{ background: 'linear-gradient(135deg, #111118 0%, #16161f 100%)', borderColor: 'var(--gold-dim)' }}>
       <div className="card-header">
         <span className="label">Net Worth</span>
-        <span className={`badge ${up ? 'badge-green' : 'badge-red'}`}>
-          {up ? '▲' : '▼'} {fmtPct(Math.abs(netWorth.changePct))} 30d
-        </span>
+        {hasChange && (
+          <span className={`badge ${up ? 'badge-green' : 'badge-red'}`}>
+            {up ? '▲' : '▼'} {fmtPct(Math.abs(netWorth.changePct))} 30d
+          </span>
+        )}
       </div>
       <div className="value-lg gold">{fmt(netWorth.total)}</div>
       <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
@@ -26,12 +29,14 @@ export default function NetWorthCard({ netWorth }) {
             {fmt(netWorth.liabilities)}
           </div>
         </div>
-        <div>
-          <div className="label">30-Day Change</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 600, color: up ? 'var(--green)' : 'var(--red)', marginTop: 4 }}>
-            {up ? '+' : ''}{fmt(netWorth.change30d)}
+        {hasChange && (
+          <div>
+            <div className="label">30-Day Change</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 600, color: up ? 'var(--green)' : 'var(--red)', marginTop: 4 }}>
+              {up ? '+' : ''}{fmt(netWorth.change30d)}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
