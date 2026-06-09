@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 
 const SUGGESTIONS = [
   "What's my biggest spending category this month?",
-  "How's my net worth trending?",
+  "Add a dining tab to my dashboard",
+  "Make a credit cards view",
   "Any tips to increase savings?",
-  "What should I know about my accounts?",
 ];
 
-export default function ChatBot({ financialContext }) {
+export default function ChatBot({ financialContext, onCreateTab }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: 'Hello! I\'m your FinanceCore AI advisor. Ask me anything about your finances.' }
   ]);
@@ -54,8 +54,9 @@ export default function ChatBot({ financialContext }) {
           const json = line.replace('data: ', '');
           if (json === '[DONE]') break;
           try {
-            const { text, error } = JSON.parse(json);
+            const { text, error, tab } = JSON.parse(json);
             if (error) { assistantText += `\n[Error: ${error}]`; }
+            if (tab) { onCreateTab?.(tab); }
             if (text) { assistantText += text; }
             setMessages(prev => [
               ...prev.slice(0, -1),
