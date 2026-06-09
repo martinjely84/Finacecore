@@ -4,6 +4,7 @@ import AccountCard from '../components/AccountCard';
 import NetWorthCard from '../components/NetWorthCard';
 import SpendingChart from '../components/SpendingChart';
 import TransactionsList from '../components/TransactionsList';
+import RecurringMonitor from '../components/RecurringMonitor';
 import ChatBot from '../components/ChatBot';
 
 const STORAGE_KEY = 'financecore_tabs';
@@ -35,6 +36,8 @@ function applyTab(tab, { accounts, spending, transactions }) {
 export default function Dashboard() {
   const [data, setData] = useState({ accounts: [], netWorth: null, spending: [] });
   const [transactions, setTransactions] = useState([]);
+  const [recurring, setRecurring] = useState(null);
+  const [recurringLoading, setRecurringLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -66,6 +69,11 @@ export default function Dashboard() {
       setTransactions(txData.transactions ?? []);
       setLoading(false);
     }).catch((e) => { setError(e.message); setLoading(false); });
+
+    fetch('/api/recurring')
+      .then((r) => r.json())
+      .then((d) => { setRecurring(d); setRecurringLoading(false); })
+      .catch(() => setRecurringLoading(false));
   }, []);
 
   function handleCreateTab(tab) {
@@ -90,17 +98,23 @@ export default function Dashboard() {
     existingTabs: tabs.map((t) => t.name),
   };
 
-  const allTabs = [{ id: 'overview', name: 'Overview', description: 'Everything' }, ...tabs];
+  const allTabs = [
+    { id: 'overview', name: 'Overview', description: 'Everything' },
+    { id: 'bills', name: 'Bills & Subscriptions', description: 'Recurring charges, utilities & insurance' },
+    ...tabs,
+  ];
+  const isBills = activeTab === 'bills';
+  const headerTab = isBills ? allTabs[1] : current;
 
   return (
     <Layout>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <div style={{ marginBottom: 18 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>
-            {current ? current.name : 'Household Overview'}
+            {headerTab ? headerTab.name : 'Household Overview'}
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-            {current?.description || 'Joint accounts · live from Era Context'}
+            {headerTab?.description || 'Joint accounts · live from Era Context'}
           </div>
         </div>
 
@@ -123,7 +137,7 @@ export default function Dashboard() {
                 }}
               >
                 {t.name}
-                {t.id !== 'overview' && (
+                {!['overview', 'bills'].includes(t.id) && (
                   <span
                     onClick={(e) => { e.stopPropagation(); deleteTab(t.id); }}
                     style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }}
@@ -138,7 +152,9 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {loading ? (
+        {isBills ? (
+          <RecurringMonitor data={recurring} loading={recurringLoading} />
+        ) : loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--text-muted)', fontSize: 14 }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.4 }}>◌</div>
