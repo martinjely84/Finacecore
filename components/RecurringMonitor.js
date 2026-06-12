@@ -44,7 +44,10 @@ function Row({ item }) {
         <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 14, color: item.type === 'income' ? 'var(--green)' : 'var(--text-primary)' }}>
           {fmt(item.amount)}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{item.frequency}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+          {item.frequency}
+          {item.monthlyAmount && item.frequency !== 'monthly' ? ` · ≈${fmt(item.monthlyAmount)}/mo` : ''}
+        </div>
       </div>
     </div>
   );
