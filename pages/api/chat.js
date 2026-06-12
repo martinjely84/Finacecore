@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Deep multi-tool analyses need more than Vercel's 10s default.
+export const config = { maxDuration: 60 };
+
 const SYSTEM = `You are FinanceCore AI, a personal financial advisor for Martin Ely's household (joint accounts).
 
 ## Data access — always ground your analysis in real data
