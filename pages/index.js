@@ -10,6 +10,33 @@ import ChatBot from '../components/ChatBot';
 
 const STORAGE_KEY = 'financecore_tabs';
 
+const CHART_COLORS = ['#6ea8fe', '#3dd68c', '#ffa657', '#b794f4', '#c9a84c', '#f05252', '#67e8f9', '#a78bfa', '#f0883e', '#4ade80'];
+
+// Auto-generated tabs for each month of the current year, up to today.
+function buildMonthTabs() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const tabs = [];
+  for (let m = 0; m <= now.getMonth(); m++) {
+    const last = new Date(year, m + 1, 0).getDate();
+    const mm = String(m + 1).padStart(2, '0');
+    tabs.push({
+      id: `month-${year}-${mm}`,
+      name: new Date(year, m, 1).toLocaleString('en-US', { month: 'short' }),
+      description: `${new Date(year, m, 1).toLocaleString('en-US', { month: 'long' })} ${year} — transactions & spending`,
+      categories: [],
+      accountTypes: [],
+      search: '',
+      fromDate: `${year}-${mm}-01`,
+      toDate: `${year}-${mm}-${String(last).padStart(2, '0')}`,
+      minAmount: 0,
+      direction: 'all',
+      builtin: true,
+    });
+  }
+  return tabs;
+}
+
 function applyTab(tab, { accounts, spending, transactions }) {
   if (!tab || tab.id === 'overview') return { accounts, spending, transactions };
 
@@ -36,9 +63,24 @@ function applyTab(tab, { accounts, spending, transactions }) {
     return true;
   });
 
+  // Date-scoped tabs (e.g. month tabs): derive the spending chart from that
+  // period's actual transactions instead of the global 30-day chart.
+  let outSpending = fSpending.length ? fSpending : spending;
+  if ((fromDate || toDate) && cats.length === 0) {
+    const byCat = {};
+    for (const t of fTransactions) {
+      if ((t.amount ?? 0) >= 0) continue;
+      const cat = t.category || 'Other';
+      byCat[cat] = (byCat[cat] ?? 0) + Math.abs(t.amount);
+    }
+    outSpending = Object.entries(byCat)
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, amount], i) => ({ category, amount, color: CHART_COLORS[i % CHART_COLORS.length] }));
+  }
+
   return {
     accounts: fAccounts,
-    spending: fSpending.length ? fSpending : spending,
+    spending: outSpending,
     transactions: fTransactions,
   };
 }
@@ -96,7 +138,8 @@ export default function Dashboard() {
     setActiveTab((cur) => (cur === id ? 'overview' : cur));
   }
 
-  const current = tabs.find((t) => t.id === activeTab);
+  const monthTabs = buildMonthTabs();
+  const current = [...tabs, ...monthTabs].find((t) => t.id === activeTab);
   const view = applyTab(current, { accounts: data.accounts ?? [], spending: data.spending ?? [], transactions });
 
   const financialContext = {
@@ -112,6 +155,7 @@ export default function Dashboard() {
     { id: 'overview', name: 'Overview', description: 'Everything' },
     { id: 'review', name: '✦ Monthly Review', description: 'Full proactive review by your AI advisor' },
     { id: 'bills', name: 'Bills & Subscriptions', description: 'Recurring charges, utilities & insurance' },
+    ...monthTabs,
     ...tabs,
   ];
   const isReview = activeTab === 'review';
@@ -149,7 +193,7 @@ export default function Dashboard() {
                 }}
               >
                 {t.name}
-                {!['overview', 'review', 'bills'].includes(t.id) && (
+                {!['overview', 'review', 'bills'].includes(t.id) && !t.builtin && (
                   <span
                     onClick={(e) => { e.stopPropagation(); deleteTab(t.id); }}
                     style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }}
