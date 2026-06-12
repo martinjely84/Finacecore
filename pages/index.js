@@ -5,6 +5,7 @@ import NetWorthCard from '../components/NetWorthCard';
 import SpendingChart from '../components/SpendingChart';
 import TransactionsList from '../components/TransactionsList';
 import RecurringMonitor from '../components/RecurringMonitor';
+import ReviewTab from '../components/ReviewTab';
 import ChatBot from '../components/ChatBot';
 
 const STORAGE_KEY = 'financecore_tabs';
@@ -109,11 +110,13 @@ export default function Dashboard() {
 
   const allTabs = [
     { id: 'overview', name: 'Overview', description: 'Everything' },
+    { id: 'review', name: '✦ Monthly Review', description: 'Full proactive review by your AI advisor' },
     { id: 'bills', name: 'Bills & Subscriptions', description: 'Recurring charges, utilities & insurance' },
     ...tabs,
   ];
+  const isReview = activeTab === 'review';
   const isBills = activeTab === 'bills';
-  const headerTab = isBills ? allTabs[1] : current;
+  const headerTab = allTabs.find((t) => t.id === activeTab && t.id !== 'overview') || current;
 
   return (
     <Layout>
@@ -146,7 +149,7 @@ export default function Dashboard() {
                 }}
               >
                 {t.name}
-                {!['overview', 'bills'].includes(t.id) && (
+                {!['overview', 'review', 'bills'].includes(t.id) && (
                   <span
                     onClick={(e) => { e.stopPropagation(); deleteTab(t.id); }}
                     style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }}
@@ -161,7 +164,9 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {isBills ? (
+        {isReview ? (
+          <ReviewTab />
+        ) : isBills ? (
           <RecurringMonitor data={recurring} loading={recurringLoading} />
         ) : loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--text-muted)', fontSize: 14 }}>
