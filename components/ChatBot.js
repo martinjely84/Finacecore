@@ -33,40 +33,51 @@ export default function ChatBot({ financialContext, onCreateTab }) {
       .filter(m => m.role !== 'assistant' || newMessages.indexOf(m) > 0)
       .map(m => ({ role: m.role, content: m.content }));
 
+    let assistantText = '';
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+    const updateLast = (content) =>
+      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content }]);
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages, context: financialContext }),
       });
+      if (!res.ok || !res.body) throw new Error(`Server error (${res.status})`);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let assistantText = '';
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+        buffer += decoder.decode(value, { stream: true });
+        // Process only complete lines; keep the partial tail in the buffer.
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
         for (const line of lines) {
-          const json = line.replace('data: ', '');
+          if (!line.startsWith('data: ')) continue; // skips ':' keepalive comments
+          const json = line.slice(6).trim();
           if (json === '[DONE]') break;
           try {
             const { text, error, tab } = JSON.parse(json);
-            if (error) { assistantText += `\n[Error: ${error}]`; }
+            if (error) { assistantText += `\n⚠️ ${error}`; }
             if (tab) { onCreateTab?.(tab); }
             if (text) { assistantText += text; }
-            setMessages(prev => [
-              ...prev.slice(0, -1),
-              { role: 'assistant', content: assistantText },
-            ]);
+            updateLast(assistantText);
           } catch {}
         }
       }
+      if (!assistantText.trim()) {
+        updateLast('Hmm, the connection dropped before I could answer. Please try again — shorter questions usually come back faster.');
+      }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, something went wrong: ${err.message}` }]);
+      updateLast(
+        (assistantText ? assistantText + '\n\n' : '') +
+        `⚠️ The connection was interrupted (${err.message}). Please try asking again.`
+      );
     }
     setLoading(false);
     inputRef.current?.focus();

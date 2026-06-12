@@ -96,8 +96,15 @@ export default async function handler(req, res) {
 
   const convo = messages.map((m) => ({ role: m.role, content: m.content }));
 
+  // Heartbeat: Era tool calls can run 20-60s with no output; without bytes on
+  // the wire Vercel kills the function and the browser sees a dead stream.
+  const heartbeat = setInterval(() => {
+    try { res.write(': keepalive\n\n'); } catch {}
+  }, 5000);
+
   try {
     for (let turn = 0; turn < 5; turn++) {
+      if (res.writableEnded || res.destroyed) break;
       const stream = client.beta.messages.stream(
         {
           model: 'claude-opus-4-8',
@@ -159,7 +166,12 @@ export default async function handler(req, res) {
     res.end();
   } catch (err) {
     console.error(err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
+    try {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch {}
+  } finally {
+    clearInterval(heartbeat);
   }
 }
