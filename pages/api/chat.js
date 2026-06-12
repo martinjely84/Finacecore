@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAdvisorSnapshot } from '../../lib/era';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -8,10 +9,8 @@ export const config = { maxDuration: 300 };
 const SYSTEM = `You are FinanceCore AI, a personal financial advisor for Martin Ely's household (joint accounts).
 
 ## Data access — always ground your analysis in real data
-You have live access to their real financial data via connected Era tools. Before analyzing accounts, spending, cash flow, or trends, CALL THE TOOLS to get current data — never answer financial questions from assumptions or only from the dashboard snapshot. For anything beyond a trivial lookup, use multiple tools and combine them:
-- "How are we doing?" → get_financial_context_and_overview + get_cash_flow + analyze_spending
-- "Where can we cut back?" → analyze_spending + list_recurring_charges + compare_spending_periods
-- "Analyze our accounts" → list_financial_accounts + get_cash_flow + analyze_spending, then give concrete numbers, ratios, and 2-3 specific recommendations
+A LIVE FINANCIAL SNAPSHOT is included at the end of this prompt: profile, goals, all account balances, net worth, this-month and last-month income/spending/net, top spending categories, and recurring income/bills/subscriptions. ANSWER FROM THE SNAPSHOT FIRST — it is current as of this request, and most questions (how are we doing, analyze our accounts, where can we cut back) can be answered fully from it.
+Only call Era tools for drill-downs the snapshot can't answer: individual transactions (transactions__search_transactions / list_transactions), multi-month history (insights__get_cash_flow, insights__compare_spending_periods), or forecasts. Tool calls are slow (10-30s each) — use at most 2 per response, and never re-fetch what the snapshot already shows.
 Do the arithmetic: savings rate, month-over-month deltas, category percentages, runway (savings ÷ monthly net burn). Cite actual figures, not vague statements.
 
 ## Memory
@@ -81,12 +80,27 @@ export default async function handler(req, res) {
   const { messages, context } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
 
-  const systemWithContext = context
-    ? `${SYSTEM}\n\nDashboard snapshot (already loaded):\n${JSON.stringify(context, null, 2)}`
-    : SYSTEM;
-
   const eraKey = process.env.ERA_API_KEY;
   const useEra = !!eraKey;
+
+  // Pre-fetch the live snapshot server-side (parallel, ~2-4s) so the model
+  // doesn't spend 30-60s gathering basics through its own tool calls.
+  let snapshot = null;
+  if (useEra) {
+    try {
+      snapshot = await Promise.race([
+        getAdvisorSnapshot(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('snapshot timeout')), 12000)),
+      ]);
+    } catch (e) {
+      console.error('snapshot prefetch failed:', e.message);
+    }
+  }
+
+  const systemWithContext =
+    SYSTEM +
+    (snapshot ? `\n\n## LIVE FINANCIAL SNAPSHOT (current as of this request)\n${JSON.stringify(snapshot)}` : '') +
+    (context ? `\n\n## Dashboard UI state\n${JSON.stringify(context)}` : '');
 
   const tools = [CREATE_TAB_TOOL, ...(useEra ? [ERA_TOOLSET] : [])];
 
@@ -133,6 +147,12 @@ export default async function handler(req, res) {
       const tabCalls = final.content.filter(
         (b) => b.type === 'tool_use' && b.name === 'create_dashboard_tab'
       );
+
+      // Server-side MCP loop hit its iteration limit — re-send to resume.
+      if (final.stop_reason === 'pause_turn') {
+        convo.push({ role: 'assistant', content: final.content });
+        continue;
+      }
 
       if (final.stop_reason !== 'tool_use' || tabCalls.length === 0) break;
 
