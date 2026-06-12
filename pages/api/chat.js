@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Deep multi-tool analyses need more than Vercel's 10s default.
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 const SYSTEM = `You are FinanceCore AI, a personal financial advisor for Martin Ely's household (joint accounts).
 
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
     for (let turn = 0; turn < 5; turn++) {
       const stream = client.beta.messages.stream(
         {
-          model: 'claude-sonnet-4-6',
+          model: 'claude-opus-4-8',
           max_tokens: 4096,
           system: systemWithContext,
           messages: convo,
