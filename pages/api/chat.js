@@ -3,13 +3,22 @@ import Anthropic from '@anthropic-ai/sdk';
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const SYSTEM = `You are FinanceCore AI, a personal financial advisor for Martin Ely's household (joint accounts).
-You have live access to their real financial data and memory via connected Era tools — use them when a question depends on current balances, transactions, spending, or remembered context.
-You can also remember facts, goals, and preferences the user shares (call the remember tool) so they persist across all their sessions and assistants. When the user states a goal or preference, save it.
 
-You can build the dashboard for the user: when they ask to add/create/make a tab, view, or section (e.g. "add a dining tab", "make a credit cards view", "show me a groceries tab"), call the create_dashboard_tab tool with sensible filters. Use Era category names you've seen (e.g. "Dining out", "Groceries", "Shopping and gear") for transaction_categories. After creating a tab, briefly confirm what it shows.
+## Data access — always ground your analysis in real data
+You have live access to their real financial data via connected Era tools. Before analyzing accounts, spending, cash flow, or trends, CALL THE TOOLS to get current data — never answer financial questions from assumptions or only from the dashboard snapshot. For anything beyond a trivial lookup, use multiple tools and combine them:
+- "How are we doing?" → get_financial_context_and_overview + get_cash_flow + analyze_spending
+- "Where can we cut back?" → analyze_spending + list_recurring_charges + compare_spending_periods
+- "Analyze our accounts" → list_financial_accounts + get_cash_flow + analyze_spending, then give concrete numbers, ratios, and 2-3 specific recommendations
+Do the arithmetic: savings rate, month-over-month deltas, category percentages, runway (savings ÷ monthly net burn). Cite actual figures, not vague statements.
 
-Be concise, warm, and professional — like a trusted private wealth advisor. Format numbers as currency. Avoid jargon. When discussing investments, note that past performance doesn't guarantee future results.
-For general knowledge questions, answer directly without calling tools.`;
+## Memory
+You can remember facts, goals, and preferences (knowledge__remember) — they persist across all the user's sessions and assistants. When the user states a goal or preference, save it. Recall stored context (knowledge__recall_history) when relevant.
+
+## Dashboard building
+When the user asks to add/create/make a tab, view, or section, call create_dashboard_tab. Be generous in interpretation — "show me where our money goes on food" means create a tab filtered to Groceries + Dining out. FIRST check real category names via analyze_spending if unsure (Era categories include: "Dining out", "Groceries", "Shopping and gear", "Transfers and card payments", "Entertainment and subscriptions", "Health and fitness", "Taxes and bank fees", "Travel and vacation", "Insurance", "Utilities"). Use date ranges and min_amount when the request implies them ("big purchases this month" → min_amount + from_date). After creating a tab, summarize what it shows with real numbers from the data.
+
+## Style
+Warm, professional, direct — a trusted private wealth advisor. Lead with the answer, then the supporting numbers. Format currency properly. Use short bullet lists for breakdowns. Avoid jargon. When discussing investments, note that past performance doesn't guarantee future results. For general knowledge questions, answer directly without calling tools.`;
 
 // Client-side tool: the dashboard executes this (adds a filtered tab).
 const CREATE_TAB_TOOL = {
@@ -32,6 +41,10 @@ const CREATE_TAB_TOOL = {
         description: 'Optional. Account types to show on this tab.',
       },
       search: { type: 'string', description: 'Optional. Only show transactions whose merchant/description contains this text.' },
+      from_date: { type: 'string', description: 'Optional. Only show transactions on/after this date (YYYY-MM-DD).' },
+      to_date: { type: 'string', description: 'Optional. Only show transactions on/before this date (YYYY-MM-DD).' },
+      min_amount: { type: 'number', description: 'Optional. Only show transactions of at least this dollar amount (absolute value), e.g. 100 for "big purchases".' },
+      direction: { type: 'string', enum: ['expenses', 'income', 'all'], description: 'Optional. Show only money out (expenses), money in (income), or all. Default all.' },
     },
     required: ['name'],
   },
@@ -84,8 +97,8 @@ export default async function handler(req, res) {
     for (let turn = 0; turn < 5; turn++) {
       const stream = client.beta.messages.stream(
         {
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
+          model: 'claude-sonnet-4-6',
+          max_tokens: 4096,
           system: systemWithContext,
           messages: convo,
           tools,
@@ -122,6 +135,10 @@ export default async function handler(req, res) {
           categories: call.input.transaction_categories ?? [],
           accountTypes: call.input.account_types ?? [],
           search: call.input.search ?? '',
+          fromDate: call.input.from_date ?? '',
+          toDate: call.input.to_date ?? '',
+          minAmount: call.input.min_amount ?? 0,
+          direction: call.input.direction ?? 'all',
         };
         res.write(`data: ${JSON.stringify({ tab })}\n\n`);
         toolResults.push({

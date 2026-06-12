@@ -15,15 +15,24 @@ function applyTab(tab, { accounts, spending, transactions }) {
   const cats = (tab.categories ?? []).map((c) => c.toLowerCase());
   const types = (tab.accountTypes ?? []).map((t) => t.toLowerCase());
   const search = (tab.search ?? '').toLowerCase();
+  const fromDate = tab.fromDate || '';
+  const toDate = tab.toDate || '';
+  const minAmount = tab.minAmount || 0;
+  const direction = tab.direction || 'all';
 
   const matchCat = (c) => cats.length === 0 || cats.includes((c ?? '').toLowerCase());
 
   const fAccounts = types.length ? accounts.filter((a) => types.includes(a.type)) : accounts;
   const fSpending = spending.filter((s) => matchCat(s.category));
   const fTransactions = transactions.filter((t) => {
-    const catOk = matchCat(t.category);
-    const searchOk = !search || (t.merchant ?? '').toLowerCase().includes(search);
-    return catOk && searchOk;
+    if (!matchCat(t.category)) return false;
+    if (search && !(t.merchant ?? '').toLowerCase().includes(search)) return false;
+    if (fromDate && (t.date ?? '') < fromDate) return false;
+    if (toDate && (t.date ?? '') > toDate) return false;
+    if (minAmount && Math.abs(t.amount ?? 0) < minAmount) return false;
+    if (direction === 'expenses' && (t.amount ?? 0) > 0) return false;
+    if (direction === 'income' && (t.amount ?? 0) < 0) return false;
+    return true;
   });
 
   return {
