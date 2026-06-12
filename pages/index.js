@@ -5,37 +5,13 @@ import NetWorthCard from '../components/NetWorthCard';
 import SpendingChart from '../components/SpendingChart';
 import TransactionsList from '../components/TransactionsList';
 import RecurringMonitor from '../components/RecurringMonitor';
+import MonthlyView from '../components/MonthlyView';
 import ReviewTab from '../components/ReviewTab';
 import ChatBot from '../components/ChatBot';
 
 const STORAGE_KEY = 'financecore_tabs';
 
 const CHART_COLORS = ['#6ea8fe', '#3dd68c', '#ffa657', '#b794f4', '#c9a84c', '#f05252', '#67e8f9', '#a78bfa', '#f0883e', '#4ade80'];
-
-// Auto-generated tabs for each month of the current year, up to today.
-function buildMonthTabs() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const tabs = [];
-  for (let m = 0; m <= now.getMonth(); m++) {
-    const last = new Date(year, m + 1, 0).getDate();
-    const mm = String(m + 1).padStart(2, '0');
-    tabs.push({
-      id: `month-${year}-${mm}`,
-      name: new Date(year, m, 1).toLocaleString('en-US', { month: 'short' }),
-      description: `${new Date(year, m, 1).toLocaleString('en-US', { month: 'long' })} ${year} — transactions & spending`,
-      categories: [],
-      accountTypes: [],
-      search: '',
-      fromDate: `${year}-${mm}-01`,
-      toDate: `${year}-${mm}-${String(last).padStart(2, '0')}`,
-      minAmount: 0,
-      direction: 'all',
-      builtin: true,
-    });
-  }
-  return tabs;
-}
 
 function applyTab(tab, { accounts, spending, transactions }) {
   if (!tab || tab.id === 'overview') return { accounts, spending, transactions };
@@ -149,8 +125,7 @@ export default function Dashboard() {
     setActiveTab((cur) => (cur === id ? 'overview' : cur));
   }
 
-  const monthTabs = buildMonthTabs();
-  const current = [...tabs, ...monthTabs].find((t) => t.id === activeTab);
+  const current = tabs.find((t) => t.id === activeTab);
   const view = applyTab(current, { accounts: data.accounts ?? [], spending: data.spending ?? [], transactions });
 
   const financialContext = {
@@ -164,11 +139,12 @@ export default function Dashboard() {
 
   const allTabs = [
     { id: 'overview', name: 'Overview', description: 'Everything' },
+    { id: 'monthly', name: 'Monthly', description: 'Where we are month to month — averages, trends, and what we spend on' },
     { id: 'review', name: '✦ Monthly Review', description: 'Full proactive review by your AI advisor' },
     { id: 'bills', name: 'Bills & Subscriptions', description: 'Recurring charges, utilities & insurance' },
-    ...monthTabs,
     ...tabs,
   ];
+  const isMonthly = activeTab === 'monthly';
   const isReview = activeTab === 'review';
   const isBills = activeTab === 'bills';
   const headerTab = allTabs.find((t) => t.id === activeTab && t.id !== 'overview') || current;
@@ -204,7 +180,7 @@ export default function Dashboard() {
                 }}
               >
                 {t.name}
-                {!['overview', 'review', 'bills'].includes(t.id) && !t.builtin && (
+                {!['overview', 'monthly', 'review', 'bills'].includes(t.id) && !t.builtin && (
                   <span
                     onClick={(e) => { e.stopPropagation(); deleteTab(t.id); }}
                     style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }}
@@ -219,7 +195,13 @@ export default function Dashboard() {
           </span>
         </div>
 
-        {isReview ? (
+        {isMonthly ? (
+          loading ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>◌ Loading transaction history…</div>
+          ) : (
+            <MonthlyView transactions={transactions} />
+          )
+        ) : isReview ? (
           <ReviewTab />
         ) : isBills ? (
           <RecurringMonitor data={recurring} loading={recurringLoading} />
