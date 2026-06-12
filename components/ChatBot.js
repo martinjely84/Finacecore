@@ -147,7 +147,7 @@ export default function ChatBot({ financialContext, onCreateTab }) {
             }}>✦</div>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>AI Financial Advisor</div>
-              <div style={{ fontSize: 11, color: 'var(--green)' }}>● Online · claude-sonnet-4</div>
+              <div style={{ fontSize: 11, color: 'var(--green)' }}>● Online · Claude Opus 4.8</div>
             </div>
           </div>
 
