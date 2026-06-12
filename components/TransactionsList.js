@@ -19,7 +19,7 @@ export default function TransactionsList({ transactions }) {
         <span className="label">Recent Transactions</span>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{transactions.length} items</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 460, overflowY: 'auto' }}>
         {transactions.map((tx) => {
           const isIncome = tx.amount > 0;
           const catColor = CAT_COLORS[tx.category] ?? 'var(--text-muted)';

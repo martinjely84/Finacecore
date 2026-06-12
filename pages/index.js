@@ -64,24 +64,35 @@ function applyTab(tab, { accounts, spending, transactions }) {
   });
 
   // Date-scoped tabs (e.g. month tabs): derive the spending chart from that
-  // period's actual transactions instead of the global 30-day chart.
+  // period's actual transactions, excluding card payoffs/transfers (they dwarf
+  // real spending and make the chart unreadable). Also compute a summary.
   let outSpending = fSpending.length ? fSpending : spending;
+  let summary = null;
   if ((fromDate || toDate) && cats.length === 0) {
+    const isTransfer = (c) => /transfer/i.test(c ?? '');
     const byCat = {};
+    let income = 0, spend = 0, transfers = 0;
     for (const t of fTransactions) {
-      if ((t.amount ?? 0) >= 0) continue;
+      const amt = t.amount ?? 0;
+      if (amt > 0) { income += amt; continue; }
+      if (isTransfer(t.category)) { transfers += Math.abs(amt); continue; }
+      spend += Math.abs(amt);
       const cat = t.category || 'Other';
-      byCat[cat] = (byCat[cat] ?? 0) + Math.abs(t.amount);
+      byCat[cat] = (byCat[cat] ?? 0) + Math.abs(amt);
     }
-    outSpending = Object.entries(byCat)
-      .sort((a, b) => b[1] - a[1])
-      .map(([category, amount], i) => ({ category, amount, color: CHART_COLORS[i % CHART_COLORS.length] }));
+    const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 8);
+    const restTotal = sorted.slice(8).reduce((s, [, v]) => s + v, 0);
+    outSpending = top.map(([category, amount], i) => ({ category, amount, color: CHART_COLORS[i % CHART_COLORS.length] }));
+    if (restTotal > 0) outSpending.push({ category: 'Other', amount: restTotal, color: '#555570' });
+    summary = { income, spend, transfers, net: income - spend };
   }
 
   return {
     accounts: fAccounts,
     spending: outSpending,
     transactions: fTransactions,
+    summary,
   };
 }
 
@@ -227,28 +238,49 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {!current && <NetWorthCard netWorth={data.netWorth} />}
 
-            <div>
-              <div className="label" style={{ marginBottom: 12 }}>Accounts</div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                gap: 12,
-              }}>
-                {view.accounts.map((acc) => (
-                  <AccountCard key={acc.id} account={acc} />
+            {view.summary ? (
+              /* Month summary: income vs real spending vs net for the period */
+              <div style={{ display: 'flex', gap: 12 }}>
+                {[
+                  { label: 'Money In', value: view.summary.income, color: 'var(--green)' },
+                  { label: 'Money Out', value: view.summary.spend, color: 'var(--orange)', sub: 'real spending, excl. transfers' },
+                  { label: 'Net', value: view.summary.net, color: view.summary.net >= 0 ? 'var(--green)' : 'var(--red)', signed: true },
+                  { label: 'Transfers & Card Payoffs', value: view.summary.transfers, color: 'var(--text-secondary)', sub: 'not counted as spending' },
+                ].map((c) => (
+                  <div key={c.label} className="card" style={{ flex: 1 }}>
+                    <div className="label">{c.label}</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: c.color, marginTop: 6 }}>
+                      {c.signed && c.value >= 0 ? '+' : c.signed ? '−' : ''}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Math.abs(c.value))}
+                    </div>
+                    {c.sub && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{c.sub}</div>}
+                  </div>
                 ))}
-                {view.accounts.length === 0 && (
-                  <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No accounts match this tab.</div>
-                )}
               </div>
-            </div>
+            ) : (
+              <div>
+                <div className="label" style={{ marginBottom: 12 }}>Accounts</div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                  gap: 12,
+                }}>
+                  {view.accounts.map((acc) => (
+                    <AccountCard key={acc.id} account={acc} />
+                  ))}
+                  {view.accounts.length === 0 && (
+                    <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No accounts match this tab.</div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div style={{
               display: 'grid',
               gridTemplateColumns: '340px 1fr',
               gap: 20,
             }}>
-              <SpendingChart spending={view.spending} />
+              <SpendingChart spending={view.spending} periodLabel={view.summary ? current?.name : '30d'} />
               <TransactionsList transactions={view.transactions} />
             </div>
           </div>
