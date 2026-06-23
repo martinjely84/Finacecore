@@ -8,8 +8,40 @@ import RecurringMonitor from '../components/RecurringMonitor';
 import MonthlyView from '../components/MonthlyView';
 import ReviewTab from '../components/ReviewTab';
 import ChatBot from '../components/ChatBot';
+import MerchantBreakdown from '../components/MerchantBreakdown';
 
 const STORAGE_KEY = 'financecore_tabs';
+
+// Hardcoded insight tabs — always present, not deletable
+const BUILTIN_INSIGHT_TABS = [
+  {
+    id: 'apple',
+    name: 'Apple',
+    description: 'All Apple subscriptions and purchases',
+    categories: [],
+    search: 'apple',
+    direction: 'expenses',
+    builtin: true,
+  },
+  {
+    id: 'amazon',
+    name: 'Amazon',
+    description: 'All Amazon spend',
+    categories: [],
+    search: 'amazon',
+    direction: 'expenses',
+    builtin: true,
+  },
+  {
+    id: 'groceries',
+    name: 'Groceries',
+    description: 'Grocery spend broken down by supermarket',
+    categories: ['Groceries'],
+    search: '',
+    direction: 'expenses',
+    builtin: true,
+  },
+];
 
 const CHART_COLORS = ['#6ea8fe', '#3dd68c', '#ffa657', '#b794f4', '#c9a84c', '#f05252', '#67e8f9', '#a78bfa', '#f0883e', '#4ade80'];
 
@@ -125,7 +157,8 @@ export default function Dashboard() {
     setActiveTab((cur) => (cur === id ? 'overview' : cur));
   }
 
-  const current = tabs.find((t) => t.id === activeTab);
+  const builtinInsight = BUILTIN_INSIGHT_TABS.find((t) => t.id === activeTab);
+  const current = builtinInsight || tabs.find((t) => t.id === activeTab);
   const view = applyTab(current, { accounts: data.accounts ?? [], spending: data.spending ?? [], transactions });
 
   const financialContext = {
@@ -142,11 +175,13 @@ export default function Dashboard() {
     { id: 'monthly', name: 'Monthly', description: 'Where we are month to month — averages, trends, and what we spend on' },
     { id: 'review', name: '✦ Monthly Review', description: 'Full proactive review by your AI advisor' },
     { id: 'bills', name: 'Bills & Subscriptions', description: 'Recurring charges, utilities & insurance' },
+    ...BUILTIN_INSIGHT_TABS,
     ...tabs,
   ];
   const isMonthly = activeTab === 'monthly';
   const isReview = activeTab === 'review';
   const isBills = activeTab === 'bills';
+  const isInsight = !!builtinInsight;
   const headerTab = allTabs.find((t) => t.id === activeTab && t.id !== 'overview') || current;
 
   return (
@@ -205,6 +240,18 @@ export default function Dashboard() {
           <ReviewTab />
         ) : isBills ? (
           <RecurringMonitor data={recurring} loading={recurringLoading} />
+        ) : isInsight ? (
+          loading ? (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>◌ Loading transactions…</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <MerchantBreakdown
+                transactions={view.transactions}
+                label={builtinInsight.id === 'groceries' ? 'By Supermarket' : `${builtinInsight.name} — By Merchant`}
+              />
+              <TransactionsList transactions={view.transactions} />
+            </div>
+          )
         ) : loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--text-muted)', fontSize: 14 }}>
             <div style={{ textAlign: 'center' }}>
