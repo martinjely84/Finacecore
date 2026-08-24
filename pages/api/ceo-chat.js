@@ -18,7 +18,7 @@ function nodeAt(area, path = []) {
 }
 
 /* ── System prompt ───────────────────────────────── */
-function buildSystem(areas) {
+function buildSystem(areas, sessions) {
   const BOTS = [
     { name: 'FinanceCore', domain: 'Household finances, Bank of America accounts, spending, live transaction data', url: 'https://financecore-umber.vercel.app' },
     { name: 'PT Coach', domain: 'Body recomposition, workout programming, nutrition', url: null },
@@ -42,6 +42,8 @@ function buildSystem(areas) {
     return `### ${a.emoji} ${a.label} [id: ${a.id}] — ${countAll(a)} items\n${secTree(a)}`;
   }).join('\n\n');
 
+  const sessBlock = (sessions || []).map(s => `- **${s.title}** (${s.date})`).join('\n');
+
   return `You are Martin's personal Chief of Staff — a sharp, direct AI executive assistant and dashboard manager.
 
 ## Martin's profile
@@ -55,6 +57,9 @@ function buildSystem(areas) {
 When a question is squarely in a specialist domain, briefly answer then route:
 
 ${botsBlock}
+
+## Martin's recent Claude Code sessions (source material to organise)
+${sessBlock || '(none provided)'}
 
 ## Martin's live dashboard
 ${areasBlock}
@@ -157,7 +162,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { messages, areas } = req.body;
+  const { messages, areas, sessions } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'messages required' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -169,9 +174,9 @@ export default async function handler(req, res) {
   try {
     for (let turn = 0; turn < 6; turn++) {
       const stream = client.messages.stream({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5',
         max_tokens: 1024,
-        system: buildSystem(areas),
+        system: buildSystem(areas, sessions),
         messages: convo,
         tools: TOOLS,
       });
