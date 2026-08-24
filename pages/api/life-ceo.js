@@ -188,7 +188,12 @@ export default async function handler(req, res) {
         })
       }
 
-      convo.push({ role: 'assistant', content: final.content })
+      // Strip empty thinking blocks — claude-sonnet-5 emits them and they
+      // cause a 400 on the next turn if the thinking field is absent/empty.
+      const safeContent = final.content.filter(
+        (b) => b.type !== 'thinking' || (b.thinking && b.thinking.length > 0)
+      )
+      convo.push({ role: 'assistant', content: safeContent })
       convo.push({ role: 'user', content: toolResults })
     }
 
